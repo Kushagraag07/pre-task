@@ -22,3 +22,6 @@ phase2-iac/terraform.tfvars.example
 
 # Docker
 postgres_data/
+
+# kubernetes manifests
+cme-task-secret.yaml
