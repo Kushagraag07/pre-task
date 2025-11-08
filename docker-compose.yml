@@ -1,0 +1,55 @@
+version: '3.8'
+
+services:
+  backend:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    ports:
+      - "5000:5000"
+    environment:
+      # Application expects these DB_* environment variables (used by app.py)
+      - DB_HOST=db
+      - DB_PORT=5432
+      - DB_USER=postgres
+      - DB_PASS=${DB_PASS}
+      - DB_NAME=cmeproducts_db
+      # keep existing recommended Python envs
+      - PYTHONDONTWRITEBYTECODE=1
+      - PYTHONUNBUFFERED=1
+    depends_on:
+      - db
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:5000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+
+  db:
+    image: postgres:15-alpine
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./models.sql:/docker-entrypoint-initdb.d/init.sql
+    environment:
+      - POSTGRES_DB=cmeproducts_db
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=${DB_PASS}
+    networks:
+      - app-network
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U postgres -d cmeproducts_db"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    ports:
+      # map host 5433 -> container 5432 (Postgres default). Containers communicate using container port 5432.
+      - "5433:5432"
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  postgres_data:

@@ -1,0 +1,19 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: cme-task-service
+  labels:
+    app: cme-task
+spec:
+  selector:
+    app: cme-task
+  type: LoadBalancer
+  ports:
+    - name: http
+      protocol: TCP
+      port: 5000
+      targetPort: 5000
+    - name: postgres
+      protocol: TCP
+      port: 5432
+      targetPort: 5432

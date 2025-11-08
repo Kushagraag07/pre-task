@@ -1,0 +1,33 @@
+# Python environment and cache
+test/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+
+# Environment and secrets
+.env
+.env.*
+*.json
+!package.json
+
+# Version control
+.git/
+.gitignore
+
+# IDE
+.vscode/
+
+# Infrastructure and deployment
+phase2-iac/
+.github/
+*.yaml
+!k8s-manifests/*.yaml
+
+# Docker
+Dockerfile
+docker-compose.yml
+postgres_data/
+
+# Documentation
+README.md

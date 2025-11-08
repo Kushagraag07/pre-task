@@ -1,0 +1,124 @@
+name: CI/CD — Build, Push, Deploy, Test
+
+on:
+  push:
+    branches:
+      - main
+
+permissions:
+  contents: read
+  id-token: write
+  pull-requests: write
+
+env:
+  PROJECT_ID: "cme-task-476714"
+  LOCATION: "us-central1"
+  CLUSTER_NAME: "cme-task-476714-autopilot"
+  IMAGE_REPO: "us-central1-docker.pkg.dev/cme-task-476714/test_project-2-backend"
+  IMAGE_NAME: "test_project-2-backend"
+  NAMESPACE: "default"
+  DEPLOYMENT: "cme-task-backend"
+  CONTAINER_NAME: "backend"
+  SERVICE_NAME: "cme-task-service"
+  PORT: 80
+
+jobs:
+  build-and-deploy:
+    name: Build → Push → Deploy → Test
+    runs-on: ubuntu-latest
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@v4
+
+    - name: Authenticate to GCP using Workload Identity (OIDC)
+      uses: google-github-actions/auth@v1
+      with:
+        # NOTE: replace the workload_identity_provider & service_account with values you create below.
+        workload_identity_provider: "projects/PROJECT_NUMBER/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
+        service_account: "github-deployer@cme-task-476714.iam.gserviceaccount.com"
+
+    - name: Set up gcloud CLI
+      uses: google-github-actions/setup-gcloud@v1
+      with:
+        project_id: ${{ env.PROJECT_ID }}
+        install_components: 'gke-gcloud-auth-plugin'
+
+    - name: Configure docker to use gcloud credential helper (Artifact Registry)
+      run: |
+        gcloud auth configure-docker --quiet us-central1-docker.pkg.dev
+
+    - name: Build & push Docker image to Artifact Registry
+      id: build_push
+      uses: docker/build-push-action@v4
+      with:
+        context: .
+        push: true
+        tags: |
+          ${{ env.IMAGE_REPO }}:${{ github.sha }}
+          ${{ env.IMAGE_REPO }}:latest
+
+    - name: Get GKE credentials
+      uses: google-github-actions/get-gke-credentials@v2
+      with:
+        cluster_name: ${{ env.CLUSTER_NAME }}
+        location: ${{ env.LOCATION }}
+        project_id: ${{ env.PROJECT_ID }}
+
+    - name: Update K8s deployment image (rolling update)
+      run: |
+        NEW_IMAGE="${{ env.IMAGE_REPO }}:${{ github.sha }}"
+        echo "Updating deployment ${{ env.DEPLOYMENT }} container ${{ env.CONTAINER_NAME }} -> $NEW_IMAGE"
+        kubectl -n ${{ env.NAMESPACE }} set image deployment/${{ env.DEPLOYMENT }} ${{ env.CONTAINER_NAME }}=$NEW_IMAGE --record
+        kubectl -n ${{ env.NAMESPACE }} rollout status deployment/${{ env.DEPLOYMENT }} --timeout=180s
+
+    - name: Wait a few seconds for services to stabilize
+      run: sleep 8
+
+    - name: Get service external IP (if LoadBalancer)
+      id: svc
+      run: |
+        SVC_NAME="${{ env.SERVICE_NAME }}"
+        NS="${{ env.NAMESPACE }}"
+        ip=""
+        for i in {1..12}; do
+          ip=$(kubectl get svc $SVC_NAME -n $NS -o jsonpath='{.status.loadBalancer.ingress[0].ip}' || true)
+          if [ -n "$ip" ]; then
+            echo "Found external IP: $ip"
+            break
+          fi
+          hostname=$(kubectl get svc $SVC_NAME -n $NS -o jsonpath='{.status.loadBalancer.ingress[0].hostname}' || true)
+          if [ -n "$hostname" ]; then
+            echo "Found external hostname: $hostname"
+            ip="$hostname"
+            break
+          fi
+          echo "Waiting for external IP..."
+          sleep 10
+        done
+        echo "service_ip=$ip" >> $GITHUB_OUTPUT
+
+    - name: Post-deploy smoke tests
+      run: |
+        IP="${{ steps.svc.outputs.service_ip }}"
+        if [ -z "$IP" ]; then
+          echo "No external IP found. Using port-forward fallback..."
+          kubectl -n ${{ env.NAMESPACE }} port-forward svc/${{ env.SERVICE_NAME }} 8080:${{ env.PORT }} >/tmp/portfw.out 2>&1 &
+          PF_PID=$!
+          sleep 3
+          HEALTH_URL="http://127.0.0.1:8080/health"
+          DB_URL="http://127.0.0.1:8080/db-check"
+        else
+          HEALTH_URL="http://$IP/health"
+          DB_URL="http://$IP/db-check"
+        fi
+
+        echo "Testing HEALTH endpoint: $HEALTH_URL"
+        curl --fail --max-time 10 $HEALTH_URL
+
+        echo "Testing DB CHECK endpoint: $DB_URL"
+        curl --fail --max-time 15 $DB_URL
+
+        if [ -n "$PF_PID" ]; then
+          kill $PF_PID || true
+        fi
