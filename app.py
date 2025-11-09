@@ -93,6 +93,11 @@ def db_check():
 def index():
     return jsonify({"message": "Flask API is running successfully!"}), 200
 
+# Basic system health check (no dependencies)
+@app.route('/health', methods=['GET'])
+def health():
+    return "OK", 200
+
 
 # ------------------- [GET] /products -------------------
 @app.route('/products', methods=['GET'])
