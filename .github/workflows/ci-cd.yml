@@ -37,6 +37,7 @@ jobs:
       with:
         workload_identity_provider: "projects/810965832511/locations/global/workloadIdentityPools/github-pool/providers/github-provider"
         service_account: "github-deployer@cme-task-476714.iam.gserviceaccount.com"
+        audience: "https://github.com/Kushagraag07/pre-task"
 
     - name: Set up gcloud CLI
       uses: google-github-actions/setup-gcloud@v1
