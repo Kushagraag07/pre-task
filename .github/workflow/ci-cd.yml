@@ -106,8 +106,8 @@ jobs:
           kubectl -n ${{ env.NAMESPACE }} port-forward svc/${{ env.SERVICE_NAME }} 8080:${{ env.PORT }} >/tmp/portfw.out 2>&1 &
           PF_PID=$!
           sleep 3
-          HEALTH_URL="http://127.0.0.1:8080/health"
-          DB_URL="http://127.0.0.1:8080/db-check"
+          HEALTH_URL="http://127.0.0.1:5000/health"
+          DB_URL="http://127.0.0.1:5000/db-check"
         else
           HEALTH_URL="http://$IP/health"
           DB_URL="http://$IP/db-check"
