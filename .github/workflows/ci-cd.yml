@@ -14,7 +14,7 @@ env:
   PROJECT_ID: "cme-task-476714"
   LOCATION: "us-central1"
   CLUSTER_NAME: "cme-task-476714-autopilot"
-  IMAGE_REPO: "us-central1-docker.pkg.dev/cme-task-476714/test_project-2-backend"
+  IMAGE_REPO: "us-central1-docker.pkg.dev/cme-task-476714/my-docker-repo"
   IMAGE_NAME: "test_project-2-backend"
   NAMESPACE: "default"
   DEPLOYMENT: "cme-task"
