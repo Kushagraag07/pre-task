@@ -80,12 +80,25 @@ jobs:
           exit 1
         fi
 
-    - name: Update K8s deployment image (rolling update)
+    - name: Update K8s deployment image (rolling update) with extended timeout & diagnostics
       run: |
+        set -e
         NEW_IMAGE="${{ env.IMAGE_REPO }}:${{ github.sha }}"
         echo "Updating deployment ${{ env.DEPLOYMENT }} container ${{ env.CONTAINER_NAME }} -> $NEW_IMAGE"
-        kubectl -n ${{ env.NAMESPACE }} set image deployment/${{ env.DEPLOYMENT }} ${{ env.CONTAINER_NAME }}=$NEW_IMAGE --record
-        kubectl -n ${{ env.NAMESPACE }} rollout status deployment/${{ env.DEPLOYMENT }} --timeout=180s
+        kubectl -n ${{ env.NAMESPACE }} set image deployment/${{ env.DEPLOYMENT }} ${{ env.CONTAINER_NAME }}=$NEW_IMAGE
+        # give pods more time to become ready (10 minutes)
+        if ! kubectl -n ${{ env.NAMESPACE }} rollout status deployment/${{ env.DEPLOYMENT }} --timeout=600s; then
+          echo "=== Deployment describe ==="
+          kubectl -n ${{ env.NAMESPACE }} describe deployment ${{ env.DEPLOYMENT }} || true
+          echo "=== Pods ==="
+          kubectl -n ${{ env.NAMESPACE }} get pods -l app=${{ env.DEPLOYMENT }} -o wide || true
+          echo "=== Pod describe & logs ==="
+          for p in $(kubectl -n ${{ env.NAMESPACE }} get pods -l app=${{ env.DEPLOYMENT }} -o name); do
+            kubectl -n ${{ env.NAMESPACE }} describe $p || true
+            kubectl -n ${{ env.NAMESPACE }} logs $p -c ${{ env.CONTAINER_NAME }} --tail=200 || true
+          done
+          exit 1
+        fi
 
     - name: Wait a few seconds for services to stabilize
       run: sleep 8
