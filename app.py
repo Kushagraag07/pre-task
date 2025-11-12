@@ -8,13 +8,13 @@ import os
 import time
 import uuid
 from datetime import datetime
+from functools import wraps
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, Response
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import UUID
 from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
-from flask import Response
 
 # Configure logging BEFORE creating the app so handlers exist early
 from app_logging import *
@@ -34,6 +34,19 @@ app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 # Initialize SQLAlchemy ORM
 db = SQLAlchemy(app)
 
+# Load API key from environment for authentication
+API_KEY = os.getenv("API_KEY")
+
+# --------------------------------------------------------------------------
+# Authentication decorator
+# --------------------------------------------------------------------------
+def require_api_key(fn):
+    @wraps(fn)
+    def wrapper(*args, **kwargs):
+        if request.headers.get("X-API-Key") != API_KEY:
+            return jsonify({"error": "Unauthorized"}), 401
+        return fn(*args, **kwargs)
+    return wrapper
 
 # --------------------------------------------------------------------------
 # Database Model
@@ -63,8 +76,11 @@ class Product(db.Model):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
+# --------------------------------------------------------------------------
+# Prometheus metrics
+# --------------------------------------------------------------------------
 REQS = Counter("http_requests_total", "HTTP requests", ["method", "path", "status"])
-LAT = Histogram("request_latency_seconds", "Request latency", buckets=[0.05,0.1,0.2,0.4,0.8,1.6,3.2])
+LAT = Histogram("request_latency_seconds", "Request latency", buckets=[0.05, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2])
 
 @app.before_request
 def _pm_start():
@@ -75,7 +91,8 @@ def _pm_end(resp):
     try:
         dt = time.time() - getattr(request, "_pm_t0", time.time())
         LAT.observe(dt)
-        REQS.labels(request.method, request.path, resp.status_code).inc()
+        # convert status to string for label stability
+        REQS.labels(request.method, request.path, str(resp.status_code)).inc()
     except Exception:
         pass
     return resp
@@ -83,13 +100,13 @@ def _pm_end(resp):
 @app.route("/metrics")
 def metrics():
     return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
+
 # --------------------------------------------------------------------------
 # Request logging (structured) - must be defined after app creation
 # --------------------------------------------------------------------------
 @app.before_request
 def _start_timer():
     request._t0 = time.time()
-
 
 @app.after_request
 def _log_request(resp):
@@ -110,7 +127,6 @@ def _log_request(resp):
         app.logger.exception("failed to log request")
     return resp
 
-
 # --------------------------------------------------------------------------
 # API Routes
 # --------------------------------------------------------------------------
@@ -125,23 +141,19 @@ def db_check():
         app.logger.exception("DB check failed")
         return jsonify({"status": "Connection failed ❌", "error": str(e)}), 500
 
-
 @app.route("/")
 def index():
     return jsonify({"message": "Flask API is running successfully!"}), 200
 
-
 @app.route("/health", methods=["GET"])
 def health():
     return "OK", 200
-
 
 # Products endpoints
 @app.route("/products", methods=["GET"])
 def get_products():
     products = Product.query.all()
     return jsonify([p.to_dict() for p in products]), 200
-
 
 @app.route("/products/<uuid:product_id>", methods=["GET"])
 def get_product(product_id):
@@ -150,8 +162,8 @@ def get_product(product_id):
         return jsonify({"error": "Product not found"}), 404
     return jsonify(product.to_dict()), 200
 
-
 @app.route("/products", methods=["POST"])
+@require_api_key
 def create_product():
     data = request.get_json()
     if not data or "name" not in data:
@@ -169,8 +181,8 @@ def create_product():
 
     return jsonify({"message": "Product created successfully", "product": new_product.to_dict()}), 201
 
-
 @app.route("/products/<uuid:product_id>", methods=["PUT"])
+@require_api_key
 def update_product(product_id):
     product = Product.query.get(product_id)
     if not product:
@@ -189,8 +201,8 @@ def update_product(product_id):
     db.session.commit()
     return jsonify({"message": "Product updated successfully", "product": product.to_dict()}), 200
 
-
 @app.route("/products/<uuid:product_id>", methods=["DELETE"])
+@require_api_key
 def delete_product(product_id):
     product = Product.query.get(product_id)
     if not product:
@@ -199,7 +211,6 @@ def delete_product(product_id):
     db.session.delete(product)
     db.session.commit()
     return jsonify({"message": "Product deleted successfully"}), 200
-
 
 # --------------------------------------------------------------------------
 # DB initialization helper (run once manually if needed)
@@ -210,13 +221,10 @@ def init_db():
         db.create_all()
         app.logger.info("Database tables ensured.")
 
-
 # --------------------------------------------------------------------------
 # Main entry point
 # --------------------------------------------------------------------------
 if __name__ == "__main__":
-    # For local dev use; in GKE/gunicorn you don't run this path
-    # Set debug=False for production, and enable LOG_LEVEL via env
     init_on_start = os.getenv("INIT_DB_ON_START", "false").lower() in ("1", "true", "yes")
     if init_on_start:
         init_db()
