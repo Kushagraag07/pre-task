@@ -15,6 +15,7 @@ spec:
       labels:
         app: cme-task
     spec:
+      serviceAccountName: backend-sa
       containers:
         # ---------------- BACKEND ----------------
         - name: backend
