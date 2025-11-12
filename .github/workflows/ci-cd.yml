@@ -66,6 +66,20 @@ jobs:
         location: ${{ env.LOCATION }}
         project_id: ${{ env.PROJECT_ID }}
 
+    # <-- Updated step: apply manifests from your folder -->
+    - name: Apply Kubernetes manifests (phase2-iac/k8s-menifests)
+      run: |
+        MANIFEST_DIR="phase2-iac/k8s-menifests"
+        echo "Applying manifests from $MANIFEST_DIR"
+        if [ -d "${MANIFEST_DIR}" ]; then
+          kubectl apply -f "${MANIFEST_DIR}/"
+          echo "✅ Applied manifests from ${MANIFEST_DIR}"
+        else
+          echo "❌ Directory ${MANIFEST_DIR} not found in repo. Listing repo root for debugging:"
+          ls -la
+          exit 1
+        fi
+
     - name: Update K8s deployment image (rolling update)
       run: |
         NEW_IMAGE="${{ env.IMAGE_REPO }}:${{ github.sha }}"
@@ -109,14 +123,14 @@ jobs:
           sleep 5
           BASE_URL="http://127.0.0.1:8080"
         else
-          BASE_URL="http://$IP:${{ env.PORT }}"   # PORT=5000 from your env
+          BASE_URL="http://$IP:${{ env.PORT }}"
         fi
 
         HEALTH_URL="$BASE_URL/health"
         DB_URL="$BASE_URL/db-check"
 
         echo "Probing $HEALTH_URL and $DB_URL with retries..."
-        for i in $(seq 1 12); do   # retry ~2 minutes
+        for i in $(seq 1 12); do
           set +e
           curl --fail --max-time 10 "$HEALTH_URL"
           H=$?
@@ -124,7 +138,7 @@ jobs:
           D=$?
           set -e
           if [ $H -eq 0 ] && [ $D -eq 0 ]; then
-            echo "Smoke tests passed."
+            echo "✅ Smoke tests passed."
             break
           fi
           echo "Attempt $i/12 failed (health=$H, db=$D). Waiting 10s..."
