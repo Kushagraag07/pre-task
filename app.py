@@ -13,6 +13,8 @@ from flask import Flask, jsonify, request
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy import text
 from sqlalchemy.dialects.postgresql import UUID
+from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_LATEST
+from flask import Response
 
 # Configure logging BEFORE creating the app so handlers exist early
 from app_logging import *
@@ -61,7 +63,26 @@ class Product(db.Model):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
+REQS = Counter("http_requests_total", "HTTP requests", ["method", "path", "status"])
+LAT = Histogram("request_latency_seconds", "Request latency", buckets=[0.05,0.1,0.2,0.4,0.8,1.6,3.2])
 
+@app.before_request
+def _pm_start():
+    request._pm_t0 = time.time()
+
+@app.after_request
+def _pm_end(resp):
+    try:
+        dt = time.time() - getattr(request, "_pm_t0", time.time())
+        LAT.observe(dt)
+        REQS.labels(request.method, request.path, resp.status_code).inc()
+    except Exception:
+        pass
+    return resp
+
+@app.route("/metrics")
+def metrics():
+    return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
 # --------------------------------------------------------------------------
 # Request logging (structured) - must be defined after app creation
 # --------------------------------------------------------------------------
