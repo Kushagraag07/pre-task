@@ -66,6 +66,18 @@ jobs:
         location: ${{ env.LOCATION }}
         project_id: ${{ env.PROJECT_ID }}
 
+    # <<< ADDED: create/update k8s secret from GitHub secret (idempotent)
+    - name: Ensure API key secret exists in cluster
+      env:
+        NAMESPACE: ${{ env.NAMESPACE }}
+      run: |
+        set -euo pipefail
+        echo "Creating/updating Kubernetes secret 'api-key' in namespace ${NAMESPACE} (value from GitHub secret)"
+        kubectl -n "${NAMESPACE}" create secret generic api-key \
+          --from-literal=API_KEY="${{ secrets.API_KEY }}" \
+          --dry-run=client -o yaml | kubectl apply -f -
+        echo "Secret ensured."
+
     # <-- Updated step: apply manifests from your folder -->
     - name: Apply Kubernetes manifests (phase2-iac/k8s-manifests)
       run: |
@@ -79,6 +91,30 @@ jobs:
           ls -la
           exit 1
         fi
+
+    # <<< ADDED: ensure the deployment references the API_KEY env var (patch only if missing)
+    - name: Ensure deployment references the API_KEY env var
+      env:
+        NAMESPACE: ${{ env.NAMESPACE }}
+        DEPLOYMENT: ${{ env.DEPLOYMENT }}
+      run: |
+        set -euo pipefail
+        echo "Checking if deployment ${DEPLOYMENT} already has API_KEY env var..."
+        EXIST=$(kubectl -n "${NAMESPACE}" get deploy "${DEPLOYMENT}" -o jsonpath='{.spec.template.spec.containers[0].env[*].name}' 2>/dev/null || true)
+        if echo "$EXIST" | grep -qw "API_KEY"; then
+          echo "API_KEY env already present in deployment."
+        else
+          echo "API_KEY env missing — patching deployment to add env from secret."
+          # If env array exists append; if not, create it
+          if kubectl -n "${NAMESPACE}" get deploy "${DEPLOYMENT}" -o jsonpath='{.spec.template.spec.containers[0].env}' >/dev/null 2>&1; then
+            kubectl -n "${NAMESPACE}" patch deployment "${DEPLOYMENT}" --type='json' -p='[{"op":"add","path":"/spec/template/spec/containers/0/env/-","value":{"name":"API_KEY","valueFrom":{"secretKeyRef":{"name":"api-key","key":"API_KEY"}}}}]'
+          else
+            kubectl -n "${NAMESPACE}" patch deployment "${DEPLOYMENT}" --type='json' -p='[{"op":"add","path":"/spec/template/spec/containers/0/env","value":[{"name":"API_KEY","valueFrom":{"secretKeyRef":{"name":"api-key","key":"API_KEY"}}}]}]'
+          fi
+          echo "Patched deployment to include API_KEY env."
+        fi
+        # show env names for visibility (no secret values)
+        kubectl -n "${NAMESPACE}" get deploy "${DEPLOYMENT}" -o jsonpath='{.spec.template.spec.containers[0].env[*].name}' || true
 
     - name: Update K8s deployment image (rolling update) with extended timeout & diagnostics
       run: |
