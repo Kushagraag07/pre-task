@@ -67,7 +67,7 @@ jobs:
         project_id: ${{ env.PROJECT_ID }}
 
     # <-- Updated step: apply manifests from your folder -->
-    - name: Apply Kubernetes manifests (phase2-iac/k8s-menifests)
+    - name: Apply Kubernetes manifests (phase2-iac/k8s-manifests)
       run: |
         MANIFEST_DIR="phase2-iac/k8s-menifests"
         echo "Applying manifests from $MANIFEST_DIR"
