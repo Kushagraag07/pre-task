@@ -20,7 +20,8 @@ spec:
         - name: backend
           image: us-central1-docker.pkg.dev/cme-task-476714/my-docker-repo/test_project-2-backend:latest
           ports:
-            - containerPort: 5000
+            - name: http
+              containerPort: 5000
           env:
             - name: DB_USER
               valueFrom:
