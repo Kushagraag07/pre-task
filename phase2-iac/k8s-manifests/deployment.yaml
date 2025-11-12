@@ -2,7 +2,7 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   name: cme-task
-  namespace: app
+  namespace: default
   labels:
     app: cme-task
 spec:
