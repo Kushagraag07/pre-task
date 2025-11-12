@@ -69,7 +69,7 @@ jobs:
     # <-- Updated step: apply manifests from your folder -->
     - name: Apply Kubernetes manifests (phase2-iac/k8s-manifests)
       run: |
-        MANIFEST_DIR="phase2-iac/k8s-menifests"
+        MANIFEST_DIR="phase2-iac/k8s-manifests"
         echo "Applying manifests from $MANIFEST_DIR"
         if [ -d "${MANIFEST_DIR}" ]; then
           kubectl apply -f "${MANIFEST_DIR}/"
