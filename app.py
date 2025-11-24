@@ -143,7 +143,7 @@ def db_check():
 
 @app.route("/")
 def index():
-    return jsonify({"message": "Flask API is running successfully!"}), 200
+    return jsonify({"message": "Flask API is running successfully!okok"}), 200
 
 @app.route("/health", methods=["GET"])
 def health():
