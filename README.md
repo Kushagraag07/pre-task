@@ -208,7 +208,7 @@ Terraform provisions:
 File-by-File Explanation
 
 
-# **1\. `main.tf` -- Network + Artifact Registry Setup**
+**1\. `main.tf` -- Network + Artifact Registry Setup**
 
 -   Creates a **VPC** with manual subnets (auto-mode disabled).
 
@@ -222,8 +222,7 @@ File-by-File Explanation
 
 -   Creates an **Artifact Registry** repository (`DOCKER` format).
 
-
-# **2\. `gke.tf` -- GKE Autopilot Cluster**
+ **2\. `gke.tf` -- GKE Autopilot Cluster**
 
 -   `enable_autopilot = true` → fully managed Kubernetes cluster.
 
@@ -244,8 +243,7 @@ File-by-File Explanation
 
 -   Master authorized networks configured (can be restricted further for security).
 
-
-# **3\. `sql.tf` -- Cloud SQL PostgreSQL**
+ **3\. `sql.tf` -- Cloud SQL PostgreSQL**
 
 Creates:
 
@@ -266,8 +264,7 @@ Creates:
 -   Automatic backups enabled.
 
 
-
-# **4\. `iam.tf` -- IAM Roles + Workload Identity**
+ **4\. `iam.tf` -- IAM Roles + Workload Identity**
 
 Creates a **Google Service Account** for the application and grants it:
 
@@ -289,8 +286,7 @@ kubectl -n default get sa backend-sa -o yaml
 
 This allows pods to authenticate to Google Cloud *without storing service account keys*.
 
-
-# **5\. `variables.tf` -- Configurable Variables**
+ **5\. `variables.tf` -- Configurable Variables**
 
 Defines all inputs:
 
@@ -307,8 +303,7 @@ Defines all inputs:
 This makes Terraform reusable and parameterized.
 
 
-
-# *6\. `output.tf` -- Useful Outputs*
+ **6\. `output.tf` -- Useful Outputs**
 
 After provisioning, Terraform prints:
 
@@ -336,7 +331,7 @@ Google Cloud SQL Setup
   Because GKE runs in the same VPC via VPC peering, the backend app can connect to Cloud SQL privately.
 
 
-GKE Autopilot Cluster Details
+# GKE Autopilot Cluster Details
 
 
 # Why Autopilot mode?
