@@ -435,12 +435,12 @@ Stores:
  `podmonitoring.yaml` 
 
 
-# Purpose
+`Purpose`
 
 This manifest integrates **Google Cloud Managed Prometheus / Cloud Monitoring** with your application by exposing metrics from your pods.
 
 
-# What it does:
+` What it does:`
 
 -   Targets pods with label `app: cme-task`.
 
@@ -460,7 +460,7 @@ This manifest integrates **Google Cloud Managed Prometheus / Cloud Monitoring** 
 
     -   Better autoscaling decisions
 
-# Requirement:
+`Requirement:`
 
 Your backend must expose `/metrics`.\
 (e.g., using  Prometheus client library.)
@@ -469,19 +469,19 @@ Your backend must expose `/metrics`.\
 # Security Considerations
 
 
-# Non-root containers
+ `Non-root containers`
 
 Using `USER app` inside Dockerfile improves security.
 
-# Private networking
+`Private networking`
 
 Cloud SQL uses **private IP only**, inaccessible from the internet.
 
-# Workload Identity
+`Workload Identity`
 
 Pods authenticate to GCP **without service account keys**.
 
-# Kubernetes Secrets
+# `Kubernetes Secrets`
 
 DB credentials are stored as Secrets, not hardcoded.
 
