@@ -4,17 +4,62 @@ Overview
 --------
 This repository contains a Flask-based Product Management REST API (Phase 1).
 
+
 Files included (high level)
 - `app.py` — Flask application and REST endpoints.
 - `app_logging.py` — Logging configuration used by the application.
 - `models.sql` — Postgres initialization SQL (creates `product` table and `uuid-ossp` extension).
-- `Dockerfile` — Image for running the app with `gunicorn`.
-- `docker-compose.yml` — Local development stack: `backend` + `db`.
+- `Dockerfile` — Production container for the backend (see below).
+- `docker-compose.yml` — Local development stack: `backend` + `db` (see below).
 - `requirements.txt` — Python dependencies.
 - `phase2-iac/` — Terraform + Kubernetes manifests for GCP (see list below).
+- `.github\workflows` — CI-CD pipeline 
 
-Phase 1 — Local development
----------------------------
+Dockerfile (Production Container)
+---------------------------------
+* Uses `python:3.11-slim` for a secure, minimal Python environment.
+* Creates a non-root user (`app`) for security; avoids running as root.
+* Installs system dependencies (`libpq-dev`, `build-essential`) for database connectivity.
+* Installs Python dependencies from `requirements.txt`.
+* Copies all application code into `/app` and sets correct ownership.
+* Runs the app with Gunicorn (`CMD ["gunicorn", ...]`) for production-grade serving, binding to port 5000.
+* Exposes logs to stdout/stderr for integration with container logging systems.
+* Environment variables like `LOG_LEVEL`, `PORT`, and Python settings are set for best practices.
+
+How to build and run the Docker image manually:
+```powershell
+# Build the image
+docker build -t cme-task-backend:latest .
+
+# Run the container (example, with environment variables)
+docker run -e DB_HOST=localhost -e DB_PORT=5432 -e DB_USER=postgres -e DB_PASS=yourpassword -e DB_NAME=cmeproducts_db -p 5000:5000 cme-task-backend:latest
+```
+
+docker-compose.yml (Local Development)
+--------------------------------------
+* Defines two services: `backend` (Flask app) and `db` (Postgres 15).
+* The `backend` service builds from the local `Dockerfile` and sets up all required environment variables for DB connectivity.
+* The `db` service uses the official Postgres image, mounts `models.sql` for automatic DB/table creation, and exposes port 5433 on the host for local access.
+* Healthchecks are defined for both services to ensure readiness.
+* Uses a custom Docker network for secure inter-container communication.
+* Environment variables are passed securely; you should set `DB_PASS` in your shell before running Compose.
+
+How to use docker-compose for local development:
+```powershell
+# Set your DB password in the environment
+$env:DB_PASS = "your_db_password"
+
+# Start both services (builds images if needed)
+docker-compose up --build
+
+# Stop and clean up
+docker-compose down
+```
+
+* The backend will be available at `http://localhost:5000`.
+* The Postgres database will be available on your host at port 5433 (useful for connecting with tools like DBeaver, pgAdmin, etc.).
+* Logs and healthchecks are visible in the Compose output.
+# run locally 
 Quick start (Python virtualenv)
 
 1. Create and activate a virtual environment (PowerShell):
@@ -46,6 +91,109 @@ Quick start (Python virtualenv)
    ```powershell
    python app.py
    ```
+
+---
+
+# Google Cloud SQL – PostgreSQL Setup Guide
+
+This section explains how to create and access a **PostgreSQL instance on Google Cloud Platform (GCP)** for your project. Example instance name: `my-postfres-instance`.
+
+ Prerequisites
+* Google Cloud Platform (GCP) account
+* GCP project created
+* Billing enabled
+
+Step 1: Create or Select a GCP Project
+1. Go to the Google Cloud Console.
+2. Click the **Project Dropdown** (top navigation bar).
+3. Select an existing project or create a new one.
+4. Note your **Project ID**.
+
+Step 2: Enable Cloud SQL Admin API
+1. Go to **Navigation Menu → APIs & Services → Library**.
+2. Search for **Cloud SQL Admin API**.
+3. Click **Enable**.
+
+Step 3: Create the PostgreSQL Instance
+1. Go to **Navigation Menu → SQL → Create Instance**.
+2. Select **PostgreSQL**.
+3. Fill in:
+    * **Instance ID**: `my-postfres-instance`
+    * **Password** for the default `postgres` user
+    * Region (e.g., `us-central1`)
+4. Click **Create Instance**.
+ 
+Step 4: View Your Created Instance
+ Web Console:
+* Navigate to → **SQL Dashboard**: https://console.cloud.google.com/sql
+* Ensure the correct **Project** is selected.
+* Your PostgreSQL instance will appear on the list.
+
+ Cloud Shell / gcloud CLI:
+```powershell
+gcloud sql instances list
+gcloud sql instances describe my-postfres-instance
+```
+
+ Step 5: Configure Connections (Public Access for Testing)
+1. Open your instance → **Connections** tab.
+2. Under **Authorized Networks**, click **Add Network**.
+3. Add:
+    * Name: `dev-access`
+    * Network: `0.0.0.0/0` *(for testing only — not secure for production)*
+
+ Step 6: Get Connection Information
+In the instance overview, note:
+* **Public IP** (e.g., `35.200.xxx.xxx`)
+* **Instance Connection Name** (e.g., `your-project:us-central1:my-postfres-instance`)
+
+ Step 7: Connect to PostgreSQL
+ Option A — Using Google Cloud Shell
+```powershell
+gcloud sql connect my-postfres-instance --user=postgres
+```
+You will be prompted for your password.
+
+ Option B — Using psql from Local Machine
+```powershell
+psql "host=<PUBLIC_IP> user=postgres password=<YOUR_PASSWORD> dbname=postgres sslmode=require"
+```
+
+ Step 8: Create Database and User (Optional)
+Once connected:
+```sql
+CREATE DATABASE cmeproducts_db;
+CREATE USER cmeuser WITH PASSWORD 'strongpassword';
+GRANT ALL PRIVILEGES ON DATABASE cmeproducts_db TO cmeuser;
+```
+
+ Step 9: Connect from Your Application
+Use the following connection string:
+```
+postgresql://cmeuser:strongpassword@<PUBLIC_IP>:5432/cmeproducts_db
+```
+Example environment variables:
+```
+DB_HOST=35.200.xxx.xxx
+DB_NAME=cmeproducts_db
+DB_USER=cmeuser
+DB_PASSWORD=strongpassword
+DB_PORT=5432
+```
+
+ Step 10: Production Recommendations
+* Disable public IP access
+* Use **Private IP** when connecting from GKE, Cloud Run, or VM
+* Enable automated backups
+* Configure IAM database authentication if needed
+
+Completed
+You have successfully:
+* Enabled Cloud SQL API
+* Created a PostgreSQL instance (`my-postfres-instance`)
+* Viewed and accessed your instance
+* Connected using Cloud Shell / psql
+* Created databases and users
 
 Docker Compose (recommended for parity with local DB behavior)
 
@@ -85,21 +233,6 @@ Metrics & Logging
 - Prometheus metrics: `GET /metrics` (Prometheus client used in `app.py`).
 - Structured logging configured in `app_logging.py`.
 
-Phase 2 — Infrastructure as Code (IaC)
-Understood --- here is your **complete, fully rewritten Phase-2 README**, including the new **podmonitoring.yaml** section **with NO omissions, NO gaps, NO skipped parts**.\
-Everything is included top to bottom, fully detailed, clean, professional, and ready to use.
-
-
-Phase 2 --- Infrastructure as Code (IaC) & Google Cloud SQL Setup
-
-
-
-Phase 2 focuses on deploying the application built in **Phase 1** onto **Google Cloud Platform (GCP)** using a fully automated and secure **Infrastructure as Code (IaC)** approach. All infrastructure --- VPC networks, GKE Autopilot cluster, Cloud SQL PostgreSQL instance, IAM permissions, container registry, and Kubernetes manifests --- is created and managed using **Terraform** and **Kubernetes YAML files**.
-
-The goal of this phase is to transition the backend application into a **cloud-native, secure, scalable, and observable** environment.
-
-
-
 🧠 Learning Objectives
 ----------------------
 
@@ -129,6 +262,13 @@ The goal of this phase is to transition the backend application into a **cloud-n
 | Monitoring | PodMonitoring + Cloud Monitoring | Observability and metrics scraping |
 
 
+# Phase 2 --- Infrastructure as Code (IaC) & Google Cloud SQL Setup
+
+
+
+Phase 2 focuses on deploying the application built in **Phase 1** onto **Google Cloud Platform (GCP)** using a fully automated and secure **Infrastructure as Code (IaC)** approach. All infrastructure --- VPC networks, GKE Autopilot cluster, Cloud SQL PostgreSQL instance, IAM permissions, container registry, and Kubernetes manifests --- is created and managed using **Terraform** and **Kubernetes YAML files**.
+
+The goal of this phase is to transition the backend application into a **cloud-native, secure, scalable, and observable** environment.
 Architecture Overview
 
 
