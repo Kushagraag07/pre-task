@@ -308,7 +308,7 @@ This makes Terraform reusable and parameterized.
 
 
 
-# **6\. `output.tf` -- Useful Outputs**
+# *6\. `output.tf` -- Useful Outputs*
 
 After provisioning, Terraform prints:
 
@@ -481,19 +481,19 @@ Cloud SQL uses **private IP only**, inaccessible from the internet.
 
 Pods authenticate to GCP **without service account keys**.
 
-# `Kubernetes Secrets`
+`Kubernetes Secrets`
 
 DB credentials are stored as Secrets, not hardcoded.
 
-# IAM Least Privilege
+`IAM Least Privilege`
 
 Only essential roles are granted (`cloudsql.client`, `artifactregistry.reader`).
 
 
-Deployment Steps
+# Deployment Steps
 
 
-# Authenticate to GCP
+`Authenticate to GCP`
 
 ```
 gcloud auth login
@@ -501,7 +501,7 @@ gcloud config set project <PROJECT_ID>
 
 ```
 
-# Enable required APIs
+`Enable required APIs`
 
 ```
 gcloud services enable\
@@ -514,9 +514,8 @@ gcloud services enable\
 
 ```
 
-* * * * *
 
-# Deploy Terraform
+`Deploy Terraform`
 
 ```
 cd terraform/
@@ -526,18 +525,17 @@ terraform apply
 
 ```
 
-* * * * *
 
-# Connect to GKE cluster
+
+`Connect to GKE cluster`
 
 ```
 gcloud container clusters get-credentials <CLUSTER_NAME> --region <REGION>
 
 ```
 
-* * * * *
 
-# Build and push the Docker image
+`Build and push the Docker image`
 
 ```
 docker build -t us-central1-docker.pkg.dev/<PROJECT_ID>/my-docker-repo/backend:latest .
@@ -547,7 +545,7 @@ docker push us-central1-docker.pkg.dev/<PROJECT_ID>/my-docker-repo/backend:lates
 
 * * * * *
 
-# Apply Kubernetes manifests
+`Apply Kubernetes manifests`
 
 ```
 kubectl apply -f kubernetes/secret.yaml
@@ -558,9 +556,8 @@ kubectl apply -f kubernetes/podmonitoring.yaml    # NEW
 
 ```
 
-* * * * *
 
-# Verify everything
+`Verify everything`
 
 ```
 kubectl get pods
@@ -570,14 +567,14 @@ kubectl get podmonitoring
 
 ```
 
-Cleanup (to avoid charges)
+`Cleanup (to avoid charges)`
 ```
 terraform destroy
 
 ```
 
 
-Phase 3 — CI/CD Pipeline (GitHub Actions)
+# Phase 3 — CI/CD Pipeline (GitHub Actions)
 ----------------------------------------
 This project includes a GitHub Actions workflow at `.github/workflows/ci-cd.yml` that implements a secure, keyless CI/CD pipeline: build → push → deploy → smoke-test. The workflow uses OIDC Workload Identity to authenticate to GCP, pushes images to Artifact Registry, and deploys to GKE.
 
