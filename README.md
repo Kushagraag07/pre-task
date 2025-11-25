@@ -701,8 +701,8 @@ This alert helps ensure the API remains reliable and any backend failures are ca
 
 * * * * *
 
- 2\. Pod Restart Spike (>3 restarts in 10 min)
----------------------------------------------------
+2\. Pod Restart Spike (>3 restarts in 10 min)
+
 
 Type: PromQL Query\
 Purpose: Detects Kubernetes pod crash loops or unstable deployments.\
@@ -718,8 +718,8 @@ This helps detect:
 
 * * * * *
 
- 3\. p95 Latency > 800ms
------------------------------
+3\. p95 Latency > 800ms
+
 
 Type: PromQL Query\
 Purpose: Tracks backend request performance using 95th percentile latency.\
@@ -735,7 +735,6 @@ Triggers When:\
 * * * * *
 
 4\. Backend -- High Error Rate
------------------------------------
 
 Type: PromQL Query\
 Purpose: Tracks HTTP error responses (5xx / 4xx).\
