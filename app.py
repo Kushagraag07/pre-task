@@ -1,6 +1,4 @@
 """
-app.py
-Flask REST API for Product Management
 Phase 1: Application Design & Development
 """
 
@@ -19,9 +17,7 @@ from prometheus_client import Counter, Histogram, generate_latest, CONTENT_TYPE_
 # Configure logging BEFORE creating the app so handlers exist early
 from app_logging import *
 
-# --------------------------------------------------------------------------
-# Flask Application Setup
-# --------------------------------------------------------------------------
+
 app = Flask(__name__)
 
 # Load environment variables (for secure DB credentials)
@@ -37,9 +33,7 @@ db = SQLAlchemy(app)
 # Load API key from environment for authentication
 API_KEY = os.getenv("API_KEY")
 
-# --------------------------------------------------------------------------
-# Authentication decorator
-# --------------------------------------------------------------------------
+# Authentication decorator for protected routes (OR can Use JWT or OAuth2 in real apps)
 def require_api_key(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
@@ -48,9 +42,8 @@ def require_api_key(fn):
         return fn(*args, **kwargs)
     return wrapper
 
-# --------------------------------------------------------------------------
 # Database Model
-# --------------------------------------------------------------------------
+
 class Product(db.Model):
     """Product table schema"""
 
@@ -76,9 +69,7 @@ class Product(db.Model):
             "updated_at": self.updated_at.isoformat() if self.updated_at else None,
         }
 
-# --------------------------------------------------------------------------
 # Prometheus metrics
-# --------------------------------------------------------------------------
 REQS = Counter("http_requests_total", "HTTP requests", ["method", "path", "status"])
 LAT = Histogram("request_latency_seconds", "Request latency", buckets=[0.05, 0.1, 0.2, 0.4, 0.8, 1.6, 3.2])
 
@@ -101,9 +92,8 @@ def _pm_end(resp):
 def metrics():
     return Response(generate_latest(), mimetype=CONTENT_TYPE_LATEST)
 
-# --------------------------------------------------------------------------
 # Request logging (structured) - must be defined after app creation
-# --------------------------------------------------------------------------
+
 @app.before_request
 def _start_timer():
     request._t0 = time.time()
@@ -127,9 +117,7 @@ def _log_request(resp):
         app.logger.exception("failed to log request")
     return resp
 
-# --------------------------------------------------------------------------
 # API Routes
-# --------------------------------------------------------------------------
 @app.route("/db-check")
 def db_check():
     try:
@@ -212,18 +200,14 @@ def delete_product(product_id):
     db.session.commit()
     return jsonify({"message": "Product deleted successfully"}), 200
 
-# --------------------------------------------------------------------------
 # DB initialization helper (run once manually if needed)
-# --------------------------------------------------------------------------
 def init_db():
     """Create database tables if they don't exist. Run in app context."""
     with app.app_context():
         db.create_all()
         app.logger.info("Database tables ensured.")
 
-# --------------------------------------------------------------------------
 # Main entry point
-# --------------------------------------------------------------------------
 if __name__ == "__main__":
     init_on_start = os.getenv("INIT_DB_ON_START", "false").lower() in ("1", "true", "yes")
     if init_on_start:

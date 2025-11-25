@@ -2,7 +2,7 @@
 
 Overview
 --------
-This repository contains a Flask-based Product Management REST API (Phase 1) and Terraform-based Infrastructure as Code (Phase 2) to deploy the application on Google Cloud Platform (GCP).
+This repository contains a Flask-based Product Management REST API (Phase 1).
 
 Files included (high level)
 - `app.py` — Flask application and REST endpoints.
@@ -78,6 +78,8 @@ Phase 1 — API summary
 Authentication
 
 Write endpoints require an API key in the header `X-API-Key`. Set `API_KEY` to a secret value in your environment or secret store.
+ OR 
+Can use JWT token for More Stronger authentication.
 
 Metrics & Logging
 
@@ -85,76 +87,495 @@ Metrics & Logging
 - Structured logging configured in `app_logging.py`.
 
 Phase 2 — Infrastructure as Code (IaC)
--------------------------------------
-All IaC lives in `phase2-iac/`. The Terraform and Kubernetes manifests provision and deploy the app to GCP (GKE Autopilot + Cloud SQL + Artifact Registry + VPC).
+Understood --- here is your **complete, fully rewritten Phase-2 README**, including the new **podmonitoring.yaml** section **with NO omissions, NO gaps, NO skipped parts**.\
+Everything is included top to bottom, fully detailed, clean, professional, and ready to use.
 
-Included Phase 2 files
-- `phase2-iac/main.tf` — provider, VPC, subnet, Artifact Registry resource
-- `phase2-iac/gke.tf` — GKE Autopilot cluster configuration
-- `phase2-iac/iam.tf` — service accounts and IAM bindings (Workload Identity)
-- `phase2-iac/sql.tf` — Cloud SQL instance, database, and user
-- `phase2-iac/variables.tf` — Terraform variable definitions
-- `phase2-iac/outputs.tf` — outputs such as cluster/instance names
-- `phase2-iac/k8s-manifests/` — Kubernetes manifests (`deployment.yaml`, `service.yaml`, `cme-task-secret.yaml`, `hap.yaml`, `podmonitoring.yaml`)
 
-Phase 2 — What was provisioned (summary)
+Phase 2 --- Infrastructure as Code (IaC) & Google Cloud SQL Setup
 
-- Secure VPC with private subnet and secondary IP ranges for GKE pods/services
-- Artifact Registry (Docker repository) in `us-central1`
-- GKE Autopilot cluster with Workload Identity enabled
-- Cloud SQL (Postgres 15) instance with private IP
-- Kubernetes Deployment & Service with health/readiness probes
-- Monitoring/logging integration with Cloud Monitoring (recommended)
 
-Phase 2 — Recommended quick workflow (PowerShell)
 
-1. Set Terraform variables (example):
+Phase 2 focuses on deploying the application built in **Phase 1** onto **Google Cloud Platform (GCP)** using a fully automated and secure **Infrastructure as Code (IaC)** approach. All infrastructure --- VPC networks, GKE Autopilot cluster, Cloud SQL PostgreSQL instance, IAM permissions, container registry, and Kubernetes manifests --- is created and managed using **Terraform** and **Kubernetes YAML files**.
 
-   ```powershell
-   setx TF_VAR_project_id "your-gcp-project-id"
-   setx TF_VAR_region "us-central1"
-   # set other TF_VAR_ values or create phase2-iac/terraform.tfvars
-   ```
+The goal of this phase is to transition the backend application into a **cloud-native, secure, scalable, and observable** environment.
 
-2. Initialize/apply Terraform (from `phase2-iac/`):
 
-   ```powershell
-   cd phase2-iac
-   terraform init
-   terraform apply -var="project_id=your-gcp-project-id"
-   ```
 
-3. Build and push the backend image to Artifact Registry:
+🧠 Learning Objectives
+----------------------
 
-   ```powershell
-   gcloud auth configure-docker us-central1-docker.pkg.dev
-   docker build -t us-central1-docker.pkg.dev/<PROJECT>/<REPO>/backend:latest .
-   docker push us-central1-docker.pkg.dev/<PROJECT>/<REPO>/backend:latest
-   ```
+| Objective | Description |
+| --- | --- |
+| **IaC Implementation** | Provision and manage infrastructure using declarative configuration (Terraform). |
+| **Automation** | Fully automate creation of cloud resources to avoid manual errors and ensure reproducibility. |
+| **Security** | Use private IPs, IAM roles, Workload Identity, and Kubernetes Secrets for secure deployment. |
+| **Container Orchestration** | Deploy and manage containers using Kubernetes & GKE Autopilot. |
+| **Scalability** | Implement Horizontal Pod Autoscaling for on-demand scaling. |
+| **Monitoring** | Collect application metrics using PodMonitoring and Cloud Monitoring. |
 
-4. Deploy Kubernetes manifests (after configuring kubeconfig):
 
-   ```powershell
-   gcloud container clusters get-credentials <cluster-name> --region <region> --project <project-id>
-   kubectl apply -f phase2-iac/k8s-manifests/
-   ```
+🧰 Technologies & Tools Used
+----------------------------
 
-Notes: Use a Terraform GCS backend for remote state and enable state locking when working in a team.
+| Category | Tools / Services | Purpose |
+| --- | --- | --- |
+| IaC | Terraform | Automate creation of VPC, GKE, Cloud SQL, IAM, Artifact Registry |
+| Cloud Provider | Google Cloud Platform | Hosting for all infrastructure |
+| Container Runtime | Docker | Build backend container image |
+| Container Registry | Google Artifact Registry | Store and serve Docker images |
+| Database | Google Cloud SQL (PostgreSQL 15) | Managed relational database |
+| Orchestration | GKE Autopilot | Run and scale application containers |
+| Secret Management | Kubernetes Secrets | Secure storage of DB credentials |
+| Autoscaling | Horizontal Pod Autoscaler (HPA) | CPU-based scaling |
+| Monitoring | PodMonitoring + Cloud Monitoring | Observability and metrics scraping |
 
-Troubleshooting checklist
--------------------------
-- ImagePull errors: run `gcloud auth configure-docker` and verify Artifact Registry IAM roles for the service account.
-- DB connection problems: ensure Cloud SQL private IP is reachable from GKE and Workload Identity has `roles/cloudsql.client`.
-- Pending pods: `kubectl describe pod <pod>` and `kubectl logs <pod>` to inspect init/errors.
 
-Next steps I can do for you
---------------------------
-- Commit the improved `README.md` to git.
-- Create `README-phase2.md` with expanded Terraform snippets and the exact resource names from your `phase2-iac/*` files.
-- Add a `phase2-iac/backend.tf` sample that configures a GCS Terraform backend for remote state.
+Architecture Overview
 
-Contact / Notes
----------------
+
+This phase creates the following cloud architecture:
+
+```
+                     ┌────────────────────────────┐
+                     │ Google Cloud SQL (Postgres)│
+                     │     Private IP Only        │
+                     └────────────▲───────────────┘
+                                  │
+                   Private VPC Peering (Service Networking)
+                                  │
+┌─────────────────────────────────────────────────────────────────────┐
+│                          GKE Autopilot Cluster                      │
+│                                                                     │
+│   ┌─────────────────────────────────────────────────────────────┐   │
+│   │                     Backend Deployment                      │   │
+│   │  - Runs Flask REST API                                      │   │
+│   │  - Secrets injected as ENV vars                             │   │
+│   │  - Metrics exposed at /metrics                              │   │
+│   │  - PodMonitoring scrapes metrics via Cloud Monitoring       │   │
+│   │  - Autoscaling via HPA                                      │   │
+│   └─────────────────────────────────────────────────────────────┘   │
+│                                                                     │
+│   LoadBalancer Service → Provides public access to the REST API     │
+└─────────────────────────────────────────────────────────────────────┘
+
+               ▲
+               │ Cloud Monitoring scrapes metrics from backend pods
+               │
+      Google Cloud Managed Prometheus / Monitoring
+
+```
+
+
+Infrastructure as Code (Terraform)
+
+
+Your Terraform directory contains:
+
+```
+terraform/
+├── main.tf
+├── gke.tf
+├── sql.tf
+├── iam.tf
+├── variables.tf
+├── output.tf
+└── terraform.tfvars
+
+```
+
+# Terraform Responsibilities
+
+Terraform provisions:
+
+-   A **custom VPC** and **subnetwork** with secondary IP ranges for pods/services.
+
+-   A **Google Cloud SQL PostgreSQL** instance using **private IP only**.
+
+-   A **GKE Autopilot Cluster** with:
+
+    -   Workload Identity
+
+    -   Private nodes
+
+    -   Regular release channel updates
+
+    -   Pod/service secondary ranges
+
+-   IAM roles for secure access between GKE and Cloud SQL.
+
+-   An Artifact Registry repository for storing Docker images.
+
+
+File-by-File Explanation
+
+
+# **1\. `main.tf` -- Network + Artifact Registry Setup**
+
+-   Creates a **VPC** with manual subnets (auto-mode disabled).
+
+-   Creates a **subnetwork** that includes **secondary IP ranges**:
+
+    -   `10.20.0.0/16` → pod IPs
+
+    -   `10.30.0.0/16` → service cluster IPs
+
+-   Enables **private Google access** for internal communication.
+
+-   Creates an **Artifact Registry** repository (`DOCKER` format).
+
+
+# **2\. `gke.tf` -- GKE Autopilot Cluster**
+
+-   `enable_autopilot = true` → fully managed Kubernetes cluster.
+
+-   Private nodes (no public IPs).
+
+-   Workload Identity configuration:
+
+    ```
+    workload_pool = "<PROJECT_ID>.svc.id.goog"
+
+    ```
+
+-   IP allocation policy using the secondary ranges from `main.tf`.
+
+-   Release channel: `"REGULAR"` for stable updates.
+
+-   Maintenance policy for planned cluster updates.
+
+-   Master authorized networks configured (can be restricted further for security).
+
+
+# **3\. `sql.tf` -- Cloud SQL PostgreSQL**
+
+Creates:
+
+-   A **PostgreSQL 15** database instance.
+
+-   Enables **private IP** access only (no public connectivity):
+
+    ```
+    ipv4_enabled = false
+    private_network = google_compute_network.vpc.id
+
+    ```
+
+-   A root DB user.
+
+-   A named database (e.g., `cmeproducts_db`).
+
+-   Automatic backups enabled.
+
+
+
+# **4\. `iam.tf` -- IAM Roles + Workload Identity**
+
+Creates a **Google Service Account** for the application and grants it:
+
+-   `roles/cloudsql.client` --- required to connect to Cloud SQL.
+
+-   `roles/artifactregistry.reader` --- needed to pull images from Artifact Registry.
+
+Binds the GSA to a Kubernetes ServiceAccount (KSA) via:
+
+```
+roles/iam.workloadIdentityUser
+
+```
+verify :
+```
+kubectl -n default get sa backend-sa -o yaml
+
+```
+
+This allows pods to authenticate to Google Cloud *without storing service account keys*.
+
+
+# **5\. `variables.tf` -- Configurable Variables**
+
+Defines all inputs:
+
+-   Project ID
+
+-   Region & zone
+
+-   CIDR ranges
+
+-   DB name, tier, port
+
+-   Kubernetes namespace/service account
+
+This makes Terraform reusable and parameterized.
+
+
+
+# **6\. `output.tf` -- Useful Outputs**
+
+After provisioning, Terraform prints:
+
+-   GKE cluster name
+
+-   Cloud SQL instance name
+
+-   Artifact Registry repo name
+
+-   DB connection information
+
+
+Google Cloud SQL Setup
+
+  The Cloud SQL instance:
+
+-   Uses the **db-f1-micro** tier (GCP free-trial friendly).
+
+-   Uses **private IP** only for secure, internal access (no public exposure).
+
+-   Automatically backs up data.
+
+-   Has a dedicated database and a DB user created via Terraform.
+
+  Because GKE runs in the same VPC via VPC peering, the backend app can connect to Cloud SQL privately.
+
+
+GKE Autopilot Cluster Details
+
+
+# Why Autopilot mode?
+
+-   You don't manage nodes (GCP handles scale, upgrades, optimizations).
+
+-   You pay **only for CPU/Memory your pods request**.
+
+-   Ideal for free trial accounts and lightweight apps.
+
+ Kubernetes Deployment
+
+Your Kubernetes manifests contain these files:
+
+```
+kubernetes/
+├── deployment.yaml
+├── service.yaml
+├── hpa.yaml
+├── secret.yaml
+└── podmonitoring.yaml  
+
+```
+
+
+
+ `deployment.yaml`
+
+
+Defines:
+
+-   A Deployment named `cme-task`.
+
+-   2 replicas of your backend Flask container.
+
+-   Resource requests & limits → important for GKE Autopilot billing.
+
+-   Liveness probe → ensures the application is running.
+
+-   Readiness probe → ensures the app is ready before receiving traffic.
+
+-   Loads DB credentials from Kubernetes `Secret`.
+
+* * * * *
+
+ `service.yaml`
+
+
+Defines:
+
+-   A `LoadBalancer` type Service.
+
+-   Exposes backend over the internet.
+
+-   GCP automatically provisions a Cloud Load Balancer.
+
+-   Maps external port → pod port (5000).
+
+* * * * *
+
+ `hpa.yaml`
+
+
+Configures horizontal pod autoscaling:
+
+-   Minimum replicas: 2
+
+-   Maximum replicas: 4
+
+-   CPU target: 70% utilization
+
+-   GKE Autopilot + Cloud Monitoring provide CPU metrics automatically.
+
+* * * * *
+
+ `secret.yaml`
+
+
+Stores:
+
+-   `DB_USER`
+
+-   `DB_PASS`
+
+-   `DB_NAME`
+
+-   `DB_HOST`
+
+-   `DB_PORT`
+
+(Loaded into the backend container as environment variables.)
+
+* * * * *
+
+
+ `podmonitoring.yaml` 
+
+
+# Purpose
+
+This manifest integrates **Google Cloud Managed Prometheus / Cloud Monitoring** with your application by exposing metrics from your pods.
+
+
+# What it does:
+
+-   Targets pods with label `app: cme-task`.
+
+-   Scrapes metrics from `/metrics` every 30 seconds.
+
+-   Sends metrics to **Cloud Monitoring dashboards**.
+
+-   Enables:
+
+    -   Request rate tracking
+
+    -   Error metrics
+
+    -   Custom dashboards
+
+    -   Alerting & SLOs
+
+    -   Better autoscaling decisions
+
+# Requirement:
+
+Your backend must expose `/metrics`.\
+(e.g., using  Prometheus client library.)
+
+
+# Security Considerations
+
+
+# Non-root containers
+
+Using `USER app` inside Dockerfile improves security.
+
+# Private networking
+
+Cloud SQL uses **private IP only**, inaccessible from the internet.
+
+# Workload Identity
+
+Pods authenticate to GCP **without service account keys**.
+
+# Kubernetes Secrets
+
+DB credentials are stored as Secrets, not hardcoded.
+
+# IAM Least Privilege
+
+Only essential roles are granted (`cloudsql.client`, `artifactregistry.reader`).
+
+
+Deployment Steps
+
+
+# Authenticate to GCP
+
+```
+gcloud auth login
+gcloud config set project <PROJECT_ID>
+
+```
+
+# Enable required APIs
+
+```
+gcloud services enable\
+  compute.googleapis.com\
+  container.googleapis.com\
+  artifactregistry.googleapis.com\
+  sqladmin.googleapis.com\
+  servicenetworking.googleapis.com\
+  iam.googleapis.com
+
+```
+
+* * * * *
+
+# Deploy Terraform
+
+```
+cd terraform/
+terraform init
+terraform plan -var="project_id=<PROJECT_ID>" -var="db_password=<YOUR_DB_PASS>"
+terraform apply
+
+```
+
+* * * * *
+
+# Connect to GKE cluster
+
+```
+gcloud container clusters get-credentials <CLUSTER_NAME> --region <REGION>
+
+```
+
+* * * * *
+
+# Build and push the Docker image
+
+```
+docker build -t us-central1-docker.pkg.dev/<PROJECT_ID>/my-docker-repo/backend:latest .
+docker push us-central1-docker.pkg.dev/<PROJECT_ID>/my-docker-repo/backend:latest
+
+```
+
+* * * * *
+
+# Apply Kubernetes manifests
+
+```
+kubectl apply -f kubernetes/secret.yaml
+kubectl apply -f kubernetes/deployment.yaml
+kubectl apply -f kubernetes/service.yaml
+kubectl apply -f kubernetes/hpa.yaml
+kubectl apply -f kubernetes/podmonitoring.yaml    # NEW
+
+```
+
+* * * * *
+
+# Verify everything
+
+```
+kubectl get pods
+kubectl get svc
+kubectl get hpa
+kubectl get podmonitoring
+
+```
+
+Cleanup (to avoid charges)
+```
+terraform destroy
+
+```
 
 
 Phase 3 — CI/CD Pipeline (GitHub Actions)
@@ -181,7 +602,7 @@ How to run locally / verify manually (PowerShell)
 1) Get GKE credentials:
 
 ```powershell
-gcloud container clusters get-credentials "cme-task-476714-autopilot" --region "us-central1" --project "cme-task-476714"
+gcloud container clusters get-credentials "<Cluster_name>" --region "<Region of work>" --project "<Project_name>"
 ```
 
 2) Check current deployment and image:
@@ -239,7 +660,7 @@ Cloud Monitoring & Logging (GKE integration)
 - Verify GKE Autopilot cluster integration (logging/monitoring services):
 
    ```powershell
-   gcloud container clusters describe cme-task-476714-autopilot --region us-central1 --format="value(loggingService, monitoringService)"
+   gcloud container clusters describe <Cluster_name> --region <region> --format="value(loggingService, monitoringService)"
    ```
 
 - Expected output:
@@ -249,7 +670,7 @@ Cloud Monitoring & Logging (GKE integration)
 - If not enabled, update the cluster:
 
    ```powershell
-   gcloud container clusters update cme-task-476714-autopilot --region us-central1 --logging=SYSTEM,WORKLOAD --monitoring=SYSTEM,WORKLOAD
+   gcloud container clusters update <Cluster_name> --region <Region> --logging=SYSTEM,WORKLOAD --monitoring=SYSTEM,WORKLOAD
    ```
 
 Application logging
@@ -258,7 +679,7 @@ Application logging
 - View recent logs:
 
    ```powershell
-   gcloud logging read "resource.type=k8s_container AND resource.labels.cluster_name=cme-task-476714-autopilot" --limit 10
+   gcloud logging read "resource.type=k8s_container AND resource.labels.cluster_name=<Cluster_name>" --limit 10
    ```
 
 Custom metrics & alerting
@@ -290,7 +711,7 @@ Cost optimization & operational tips
 - Pause Cloud SQL when idle to save credits:
 
    ```powershell
-   gcloud sql instances stop cme-task-476714-pg
+   gcloud sql instances stop <Instance_name>
    ```
 
 - Scale deployments to zero when not in use:
@@ -301,14 +722,4 @@ Cost optimization & operational tips
 
 - Consider smaller DB tiers or preemptible nodes for non-production environments to reduce costs.
    ```
-
-Summary & next steps
-- Phase 4 completes the observability stack: Prometheus metrics exposed by the app, Cloud Monitoring/Logging integration on GKE, alerting policies, HPA tuning, and cost-saving recommendations.
-- Next I can:
-   - Add example alert policy configurations to `phase2-iac/` or documentation,
-   - Add a sample HPA manifest tied to Prometheus custom metrics,
-   - Commit the README changes.
-
-
-
 
