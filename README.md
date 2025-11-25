@@ -1,4 +1,4 @@
-# cme-task — Phase 1 & Phase 2
+# PRE-TASK
 
 Overview
 --------
@@ -15,6 +15,40 @@ Files included (high level)
 - `phase2-iac/` — Terraform + Kubernetes manifests for GCP (see list below).
 - `.github\workflows` — CI-CD pipeline 
 
+# run locally 
+Quick start (Python virtualenv)
+
+1. Create and activate a virtual environment (PowerShell):
+
+   ```powershell
+   py -3 -m venv .venv
+   .\.venv\Scripts\Activate.ps1
+   ```
+
+2. Install dependencies:
+
+   ```powershell
+   pip install -r requirements.txt
+   ```
+
+3. Set environment variables (example):
+
+   ```powershell
+   $env:DB_HOST = "localhost"
+   $env:DB_PORT = "5432"
+   $env:DB_USER = "postgres"
+   $env:DB_PASS = "yourpassword"
+   $env:DB_NAME = "cmeproducts_db"
+   $env:API_KEY = "my-secret-key"
+   ```
+
+4. Run locally:
+
+   ```powershell
+   python app.py
+   ```
+
+---
 Dockerfile (Production Container)
 ---------------------------------
 * Uses `python:3.11-slim` for a secure, minimal Python environment.
@@ -59,40 +93,7 @@ docker-compose down
 * The backend will be available at `http://localhost:5000`.
 * The Postgres database will be available on your host at port 5433 (useful for connecting with tools like DBeaver, pgAdmin, etc.).
 * Logs and healthchecks are visible in the Compose output.
-# run locally 
-Quick start (Python virtualenv)
 
-1. Create and activate a virtual environment (PowerShell):
-
-   ```powershell
-   py -3 -m venv .venv
-   .\.venv\Scripts\Activate.ps1
-   ```
-
-2. Install dependencies:
-
-   ```powershell
-   pip install -r requirements.txt
-   ```
-
-3. Set environment variables (example):
-
-   ```powershell
-   $env:DB_HOST = "localhost"
-   $env:DB_PORT = "5432"
-   $env:DB_USER = "postgres"
-   $env:DB_PASS = "yourpassword"
-   $env:DB_NAME = "cmeproducts_db"
-   $env:API_KEY = "my-secret-key"
-   ```
-
-4. Run locally:
-
-   ```powershell
-   python app.py
-   ```
-
----
 
 # Google Cloud SQL – PostgreSQL Setup Guide
 
@@ -195,14 +196,7 @@ You have successfully:
 * Connected using Cloud Shell / psql
 * Created databases and users
 
-Docker Compose (recommended for parity with local DB behavior)
 
-1. Provide `DB_PASS` in your environment and start:
-
-   ```powershell
-   $env:DB_PASS = "your_db_password"
-   docker-compose up --build
-   ```
 
 2. The API will be at `http://localhost:5000`. PostgreSQL is exposed on host port `5433` (container `5432`).
 
@@ -275,34 +269,39 @@ Architecture Overview
 This phase creates the following cloud architecture:
 
 ```
-                     ┌────────────────────────────┐
-                     │ Google Cloud SQL (Postgres)│
-                     │     Private IP Only        │
-                     └────────────▲───────────────┘
-                                  │
-                   Private VPC Peering (Service Networking)
-                                  │
-┌─────────────────────────────────────────────────────────────────────┐
-│                          GKE Autopilot Cluster                      │
-│                                                                     │
-│   ┌─────────────────────────────────────────────────────────────┐   │
-│   │                     Backend Deployment                      │   │
-│   │  - Runs Flask REST API                                      │   │
-│   │  - Secrets injected as ENV vars                             │   │
-│   │  - Metrics exposed at /metrics                              │   │
-│   │  - PodMonitoring scrapes metrics via Cloud Monitoring       │   │
-│   │  - Autoscaling via HPA                                      │   │
-│   └─────────────────────────────────────────────────────────────┘   │
-│                                                                     │
-│   LoadBalancer Service → Provides public access to the REST API     │
-└─────────────────────────────────────────────────────────────────────┘
-
-               ▲
-               │ Cloud Monitoring scrapes metrics from backend pods
-               │
-      Google Cloud Managed Prometheus / Monitoring
-
+┌─────────────────────────────────────────────────────────────────────────────┐
+│                          Google Cloud Platform (GCP)                        │
+│                                                                             │
+│   ┌─────────────────────────────┐      ┌─────────────────────────────┐       │
+│   │  Google Cloud SQL (Postgres)│◄────►│  GKE Autopilot Cluster      │       │
+│   │    Private IP Only          │      │  (Kubernetes)               │       │
+│   └─────────────────────────────┘      │                                 │   │
+│           ▲   │                        │   ┌─────────────────────────┐   │   │
+│           │   │ VPC Peering            │   │ Backend Deployment      │   │   │
+│           │   └────────────────────────┘   │ - Flask REST API        │   │   │
+│           │                                │ - Secrets as ENV vars   │   │   │
+│           │                                │ - /metrics endpoint     │   │   │
+│           │                                │ - PodMonitoring         │   │   │
+│           │                                │ - Autoscaling (HPA)     │   │   │
+│           │                                └─────────────────────────┘   │   │
+│           │                                │   ▲                         │   │
+│           │                                │   │                         │   │
+│           │                                │   │ Cloud Monitoring        │   │
+│           │                                │   │ scrapes metrics         │   │
+│           │                                │   ▼                         │   │
+│           │                                └─────────────────────────────┘   │
+│           │                                │                                 │
+│           │                                │ LoadBalancer Service            │
+│           │                                │ (Public REST API access)        │
+│           │                                └─────────────────────────────┘   │
+│                                                                             │
+└─────────────────────────────────────────────────────────────────────────────┘
 ```
+* Private VPC Peering connects Cloud SQL and GKE securely (no public IP exposure).
+* Backend pods expose Prometheus metrics, scraped by Cloud Monitoring.
+* LoadBalancer Service provides public API access.
+* All secrets and DB credentials are injected securely via Kubernetes Secrets.
+
 
 
 Infrastructure as Code (Terraform)
