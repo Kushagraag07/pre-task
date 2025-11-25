@@ -7,7 +7,6 @@ This repository contains a Flask-based Product Management REST API (Phase 1) and
 Files included (high level)
 - `app.py` — Flask application and REST endpoints.
 - `app_logging.py` — Logging configuration used by the application.
-- `models.py` — SQLAlchemy model definitions (if present).
 - `models.sql` — Postgres initialization SQL (creates `product` table and `uuid-ossp` extension).
 - `Dockerfile` — Image for running the app with `gunicorn`.
 - `docker-compose.yml` — Local development stack: `backend` + `db`.
