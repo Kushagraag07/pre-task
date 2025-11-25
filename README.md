@@ -631,7 +631,7 @@ Notes for maintainers
 - Ensure the OIDC provider and service account bindings exist and match the `audience` and `workload_identity_pool` values used when configuring the `google-github-actions/auth` step.
 - The workflow applies all manifests under `phase2-iac/k8s-manifests/`. Keep those manifests source-controlled and parameterized where possible (image, secrets, resource requests).
 
-Phase 4 — Monitoring, Logging & Optimization
+# Phase 4 — Monitoring, Logging & Optimization
 -------------------------------------------
 This section documents the monitoring and observability work (Prometheus metrics, Cloud Monitoring, Cloud Logging) and provides actionable steps to enable alerting, autoscaling, and cost optimizations.
 
@@ -680,10 +680,84 @@ Custom metrics & alerting
    gcloud monitoring policies create --notification-channels="email:youremail@example.com" --condition-display-name="High CPU Usage on GKE Pods" --condition-filter='metric.type="kubernetes.io/container/cpu/core_usage_time" AND resource.type="k8s_container"' --condition-threshold-value=0.7
    ```
 
-- Suggested alert rules:
-   - Latency > 1s for 5 minutes
-   - 5xx error rate > 5% over 5 minutes
-   - Pod restart count > 3 in 10 minutes
+ Alerting Policies
+
+- Google Cloud Monitoring Alerting Policies continuously watch your cluster and automatically trigger notifications if issues arise.
+
+Your alert policies include:
+
+* * * * *
+
+ **1\. Backup Alert**
+----------------------
+
+**Type:** Google Cloud Metrics\
+**Purpose:** Ensures that automated system/database backups complete successfully.\
+**Triggers When:** Backup job fails OR backup age exceeds allowed limit.
+
+* * * * *
+
+ **2\. Pod Restart Spike (>3 restarts in 10 min)**
+---------------------------------------------------
+
+**Type:** PromQL Query\
+**Purpose:** Detects Kubernetes pod crash loops or unstable deployments.\
+**Logic:**\
+Alerts if pod restarts exceed 3 within 10 minutes.\
+This helps detect:
+
+-   CrashLoopBackOff
+
+-   ImagePull errors
+
+-   Misconfigured environment variables
+
+* * * * *
+
+ **3\. p95 Latency > 800ms**
+-----------------------------
+
+**Type:** PromQL Query\
+**Purpose:** Tracks backend request performance using 95th percentile latency.\
+**Triggers When:**\
+95% of requests take longer than **800ms**, indicating:
+
+-   Heavy load
+
+-   DB delays
+
+-   Slow API responses
+
+* * * * *
+
+**4\. Backend -- High Error Rate**
+-----------------------------------
+
+**Type:** PromQL Query\
+**Purpose:** Tracks HTTP error responses (5xx / 4xx).\
+**Triggers When:**\
+Error rate exceeds threshold (e.g., >10% of total requests).
+
+This prevents silent failures.
+
+* * * * *
+
+ Viewing Alerts
+
+
+**Cloud Console → Monitoring → Alerting**
+
+There you see:
+
+-   Active / closed incidents
+
+-   List of alert policies
+
+-   Snoozed alerts
+
+-   Severity levels
+
+-   Last modified date
 
 Horizontal Pod Autoscaler (HPA)
 - The deployment can autoscale based on CPU or custom metrics (Prometheus). Example HPA settings used:
