@@ -551,7 +551,6 @@ kubectl apply -f kubernetes/podmonitoring.yaml    # NEW
 
 ```
 
-
 `Verify everything`
 
 ```
@@ -688,21 +687,26 @@ Your alert policies include:
 
 * * * * *
 
- **1\. Backup Alert**
-----------------------
+1\. Backend 5xx Error Alert (previously named "backup alert")
 
-**Type:** Google Cloud Metrics\
-**Purpose:** Ensures that automated system/database backups complete successfully.\
-**Triggers When:** Backup job fails OR backup age exceeds allowed limit.
+Type: Google Cloud Metrics  
+Purpose: Detects when the backend API begins returning **HTTP 5xx server errors**, indicating failures inside the application or infrastructure.  
+Triggers When:  
+- A sudden spike in 500/502/503/504 errors  
+- Application crash  
+- Database connectivity failure  
+- Misconfigured deployment  
+
+This alert helps ensure the API remains reliable and any backend failures are caught immediately.
 
 * * * * *
 
- **2\. Pod Restart Spike (>3 restarts in 10 min)**
+ 2\. Pod Restart Spike (>3 restarts in 10 min)
 ---------------------------------------------------
 
-**Type:** PromQL Query\
-**Purpose:** Detects Kubernetes pod crash loops or unstable deployments.\
-**Logic:**\
+Type: PromQL Query\
+Purpose: Detects Kubernetes pod crash loops or unstable deployments.\
+Logic:\
 Alerts if pod restarts exceed 3 within 10 minutes.\
 This helps detect:
 
@@ -714,12 +718,12 @@ This helps detect:
 
 * * * * *
 
- **3\. p95 Latency > 800ms**
+ 3\. p95 Latency > 800ms
 -----------------------------
 
-**Type:** PromQL Query\
-**Purpose:** Tracks backend request performance using 95th percentile latency.\
-**Triggers When:**\
+Type: PromQL Query\
+Purpose: Tracks backend request performance using 95th percentile latency.\
+Triggers When:\
 95% of requests take longer than **800ms**, indicating:
 
 -   Heavy load
@@ -730,12 +734,12 @@ This helps detect:
 
 * * * * *
 
-**4\. Backend -- High Error Rate**
+4\. Backend -- High Error Rate
 -----------------------------------
 
-**Type:** PromQL Query\
-**Purpose:** Tracks HTTP error responses (5xx / 4xx).\
-**Triggers When:**\
+Type: PromQL Query\
+Purpose: Tracks HTTP error responses (5xx / 4xx).\
+Triggers When:\
 Error rate exceeds threshold (e.g., >10% of total requests).
 
 This prevents silent failures.
@@ -745,7 +749,7 @@ This prevents silent failures.
  Viewing Alerts
 
 
-**Cloud Console → Monitoring → Alerting**
+Cloud Console → Monitoring → Alerting
 
 There you see:
 
@@ -759,19 +763,6 @@ There you see:
 
 -   Last modified date
 
-Horizontal Pod Autoscaler (HPA)
-- The deployment can autoscale based on CPU or custom metrics (Prometheus). Example HPA settings used:
-   - `minReplicas: 2`
-   - `maxReplicas: 5`
-   - `targetCPUUtilizationPercentage: 70`
-
-- View HPA:
-
-   ```powershell
-   kubectl get hpa
-   kubectl describe hpa cme-task-hpa
-   ```
-
 Cost optimization & operational tips
 - Pause Cloud SQL when idle to save credits:
 
@@ -782,9 +773,8 @@ Cost optimization & operational tips
 - Scale deployments to zero when not in use:
 
    ```powershell
-   kubectl scale deployment cme-task --replicas=0
+   kubectl scale deployment <deployment_name> --replicas=0
    ```
 
 - Consider smaller DB tiers or preemptible nodes for non-production environments to reduce costs.
-   ```
 
